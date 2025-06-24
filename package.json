@@ -1,11 +1,18 @@
 {
-  "name": "video-react",
-  "version": "0.16.0",
+  "name": "@geocine/video-react",
+  "version": "0.16.23",
   "description": "Video-React is a web video player built from the ground up for an HTML5 world using React library.",
   "main": "lib/index.js",
   "style": "dist/video-react.css",
+  "exports": {
+    ".": {
+      "import": "./dist/video-react.es.js",
+      "require": "./lib/index.js"
+    },
+    "./dist/video-react.css": "./dist/video-react.css"
+  },
   "scripts": {
-    "test": "BABEL_ENV=test jest",
+    "test": "cross-env BABEL_ENV=test jest",
     "test:watch": "BABEL_ENV=test jest --watch",
     "test:coverage": "BABEL_ENV=test jest --coverage",
     "start": "cross-env NODE_OPTIONS=\"--openssl-legacy-provider\" webpack-dev-server --watch",
@@ -34,7 +41,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/video-react/video-react.git"
+    "url": "git+https://github.com/geocine/video-react.git"
   },
   "files": [
     "LICENSE",
@@ -70,9 +77,9 @@
   ],
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/video-react/video-react/issues"
+    "url": "https://github.com/geocine/video-react/issues"
   },
-  "homepage": "https://github.com/video-react/video-react#readme",
+  "homepage": "https://github.com/geocine/video-react#readme",
   "tonicExampleFilename": "tonic-example.js",
   "dependencies": {
     "@babel/runtime": "^7.4.5",

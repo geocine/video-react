@@ -151,8 +151,12 @@ export default function player(state = initialState, action) {
         error: 'UNKNOWN ERROR',
         ended: true
       };
-    case DURATION_CHANGE:
     case TIME_UPDATE:
+      return {
+        ...state,
+        ...action.videoProps
+      };
+    case DURATION_CHANGE:
     case VOLUME_CHANGE:
     case PROGRESS_CHANGE:
     case RATE_CHANGE:

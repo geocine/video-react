@@ -54,6 +54,11 @@ export function getPointerPosition(el, event) {
   const boxW = el.offsetWidth;
   const boxH = el.offsetHeight;
 
+  // Validate element dimensions
+  if (!boxW || !boxH || boxW <= 0 || boxH <= 0) {
+    return { x: 0, y: 0 };
+  }
+
   const boxY = box.top;
   const boxX = box.left;
   let evtPageY = event.pageY;
@@ -62,6 +67,16 @@ export function getPointerPosition(el, event) {
   if (event.changedTouches) {
     evtPageX = event.changedTouches[0].pageX;
     evtPageY = event.changedTouches[0].pageY;
+  }
+
+  // Validate event coordinates
+  if (
+    !Number.isFinite(evtPageX) ||
+    !Number.isFinite(evtPageY) ||
+    !Number.isFinite(boxX) ||
+    !Number.isFinite(boxY)
+  ) {
+    return { x: 0, y: 0 };
   }
 
   position.y = Math.max(0, Math.min(1, (boxY - evtPageY + boxH) / boxH));

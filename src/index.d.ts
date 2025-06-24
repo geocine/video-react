@@ -21,6 +21,9 @@ declare module 'video-react' {
     src?: string;
     poster?: string;
     preload?: PreloadType; // = 'auto';
+    createBlob?: boolean; // = false;
+    cache?: boolean; // = false;
+    showLogs?: boolean; // = false;
 
     onLoadStart?: ReactEventHandler;
     onWaiting?: ReactEventHandler;
@@ -133,6 +136,9 @@ declare module 'video-react' {
     className?: string;
     preload?: PreloadType;
     crossOrigin?: string;
+    createBlob?: boolean;
+    cache?: boolean;
+    showLogs?: boolean;
 
     onLoadStart?: ReactEventHandler;
     onWaiting?: ReactEventHandler;

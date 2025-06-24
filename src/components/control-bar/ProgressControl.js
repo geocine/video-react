@@ -22,6 +22,7 @@ export default class ProgressControl extends Component {
     };
 
     this.handleMouseMoveThrottle = this.handleMouseMove.bind(this);
+    this.handleMouseLeave = this.handleMouseLeave.bind(this);
   }
 
   handleMouseMove(event) {
@@ -31,7 +32,12 @@ export default class ProgressControl extends Component {
     const {
       player: { duration }
     } = this.props;
+
     const node = this.seekBar;
+    if (!node) {
+      return;
+    }
+
     const newTime = Dom.getPointerPosition(node, event).x * duration;
     const position = event.pageX - Dom.findElPosition(node).left;
 
@@ -43,11 +49,22 @@ export default class ProgressControl extends Component {
     });
   }
 
+  handleMouseLeave() {
+    // Clear mouse time display when mouse leaves the control
+    this.setState({
+      mouseTime: {
+        time: null,
+        position: 0
+      }
+    });
+  }
+
   render() {
     const { className } = this.props;
     return (
       <div
         onMouseMove={this.handleMouseMoveThrottle}
+        onMouseLeave={this.handleMouseLeave}
         className={classNames(
           'video-react-progress-control video-react-control',
           className

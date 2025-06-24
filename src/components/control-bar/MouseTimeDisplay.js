@@ -4,9 +4,7 @@ import classNames from 'classnames';
 
 import { formatTime } from '../../utils';
 
-function MouseTimeDisplay({
-  duration, mouseTime, className, text
-}) {
+function MouseTimeDisplay({ duration, mouseTime, className, text }) {
   if (!mouseTime.time) {
     return null;
   }
@@ -27,7 +25,8 @@ function MouseTimeDisplay({
 MouseTimeDisplay.propTypes = {
   duration: PropTypes.number,
   mouseTime: PropTypes.object,
-  className: PropTypes.string
+  className: PropTypes.string,
+  text: PropTypes.string
 };
 MouseTimeDisplay.displayName = 'MouseTimeDisplay';
 

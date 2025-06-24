@@ -35,6 +35,9 @@ const propTypes = {
   src: PropTypes.string,
   poster: PropTypes.string,
   preload: PropTypes.oneOf(['auto', 'metadata', 'none']),
+  createBlob: PropTypes.bool,
+  cache: PropTypes.bool,
+  showLogs: PropTypes.bool,
 
   onLoadStart: PropTypes.func,
   onWaiting: PropTypes.func,
@@ -67,7 +70,10 @@ const defaultProps = {
   muted: false,
   playsInline: false,
   preload: 'auto',
-  aspectRatio: 'auto'
+  aspectRatio: 'auto',
+  createBlob: false,
+  cache: false,
+  showLogs: false
 };
 
 export default class Player extends Component {
@@ -120,6 +126,7 @@ export default class Player extends Component {
         }}
         key="video"
         order={0.0}
+        cache={this.props.cache}
       >
         {originalChildren}
       </Video>,

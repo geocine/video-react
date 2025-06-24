@@ -18,6 +18,8 @@ const propTypes = {
   className: PropTypes.string,
   preload: PropTypes.oneOf(['auto', 'metadata', 'none']),
   crossOrigin: PropTypes.string,
+  createBlob: PropTypes.bool,
+  showLogs: PropTypes.bool,
 
   onLoadStart: PropTypes.func,
   onWaiting: PropTypes.func,
@@ -49,6 +51,10 @@ export default class Video extends Component {
     super(props);
 
     this.video = null; // the html5 video
+    this.originalSrc = null; // track original source URL
+    this.blobUrl = null; // track blob URL if created
+    this.processedSrc = null; // track the processed source URL that should be used by video element
+
     this.play = this.play.bind(this);
     this.pause = this.pause.bind(this);
     this.seek = this.seek.bind(this);
@@ -90,6 +96,32 @@ export default class Video extends Component {
       this.video.textTracks.onaddtrack = this.handleTextTrackChange;
       this.video.textTracks.onremovetrack = this.handleTextTrackChange;
     }
+
+    // Store the original source URL from props
+    if (this.props.src) {
+      this.originalSrc = this.props.src;
+      // Process the source URL through blob creation if enabled
+      this.processSourceUrl(this.props.src);
+    }
+  }
+
+  componentDidUpdate(prevProps) {
+    // Only clean up blob and create new one if src prop actually changes
+    if (this.props.src !== prevProps.src && this.props.src) {
+      this.log(
+        'Video.componentDidUpdate() - Source changed, cleaning up old blob'
+      );
+      this.originalSrc = this.props.src;
+      // Clean up any existing blob since we have a new source
+      this.cleanupBlob();
+      // Process the new source URL through blob creation
+      this.processSourceUrl(this.props.src);
+    }
+  }
+
+  componentWillUnmount() {
+    // Clean up blob when component unmounts
+    this.cleanupBlob();
   }
 
   // get all video properties
@@ -147,6 +179,28 @@ export default class Video extends Component {
     return this.video.videoHeight;
   }
 
+  // Helper methods for conditional logging
+  log(...args) {
+    if (this.props.showLogs) {
+      // eslint-disable-next-line no-console
+      console.log(...args);
+    }
+  }
+
+  warn(...args) {
+    if (this.props.showLogs) {
+      // eslint-disable-next-line no-console
+      console.warn(...args);
+    }
+  }
+
+  error(...args) {
+    if (this.props.showLogs) {
+      // eslint-disable-next-line no-console
+      console.error(...args);
+    }
+  }
+
   handleTextTrackChange() {
     const { actions, player } = this.props;
     if (this.video && this.video.textTracks) {
@@ -161,6 +215,9 @@ export default class Video extends Component {
 
   // play the video
   play() {
+    // Since we now process URLs through blob creation before they reach the video element,
+    // we can play directly without worrying about blob state
+    this.log('Video.play() - Playing video');
     const promise = this.video.play();
     if (promise !== undefined) {
       promise.catch(() => {}).then(() => {});
@@ -201,10 +258,48 @@ export default class Video extends Component {
 
   // seek video by time
   seek(time) {
+    this.log('Video.seek() called with time:', time, 'type:', typeof time);
+
     try {
-      this.video.currentTime = time;
+      // Validate time parameter
+      if (!Number.isFinite(time) || time < 0) {
+        this.warn(
+          'Video.seek() - Invalid time parameter:',
+          time,
+          'Aborting seek.'
+        );
+        return;
+      }
+
+      // Ensure video element exists and has valid duration
+      if (
+        !this.video ||
+        !Number.isFinite(this.video.duration) ||
+        this.video.duration <= 0
+      ) {
+        this.warn('Video.seek() - Video element or duration invalid:', {
+          hasVideo: !!this.video,
+          duration: this.video ? this.video.duration : 'N/A',
+          durationIsFinite: this.video
+            ? Number.isFinite(this.video.duration)
+            : false
+        });
+        return;
+      }
+
+      // Clamp time to valid range
+      const clampedTime = Math.max(0, Math.min(time, this.video.duration));
+
+      // Since we now process URLs through blob creation before they reach the video element,
+      // we can seek directly without worrying about blob state
+      this.log('Video.seek() - Seeking directly to:', clampedTime);
+      this.video.currentTime = clampedTime;
     } catch (e) {
-      // console.log(e, 'Video is not ready.')
+      this.error('Video seek error:', e, {
+        requestedTime: time,
+        videoDuration: this.video && this.video.duration,
+        videoCurrentTime: this.video && this.video.currentTime
+      });
     }
   }
 
@@ -315,9 +410,11 @@ export default class Video extends Component {
   // Fired when the end of the media resource
   // is reached (currentTime == duration)
   handleEnded(...args) {
-    const {
-      loop, player, actions, onEnded
-    } = this.props;
+    const { loop, player, actions, onEnded } = this.props;
+
+    // Don't clean up blob URL here - keep it in memory for reuse
+    // Only clean up when the source actually changes
+
     if (loop) {
       this.seek(0);
       this.play();
@@ -416,6 +513,9 @@ export default class Video extends Component {
 
     actions.handleLoadedMetaData(this.getProperties());
 
+    // Call resize handler when video metadata is loaded (dimensions are available)
+    this.handleResize();
+
     if (onLoadedMetadata) {
       onLoadedMetadata(...args);
     }
@@ -499,7 +599,7 @@ export default class Video extends Component {
     // only keep <source />, <track />, <MyComponent isVideoChild /> elements
     return React.Children.toArray(this.props.children)
       .filter(isVideoChild)
-      .map((c) => {
+      .map(c => {
         let cprops;
         if (typeof c.type === 'string') {
           // add onError to <source />
@@ -533,12 +633,15 @@ export default class Video extends Component {
       videoId
     } = this.props;
 
+    // Use processed source URL if available, otherwise use original src
+    const videoSrc = this.processedSrc !== null ? this.processedSrc : src;
+
     return (
       <video
         className={classNames('video-react-video', this.props.className)}
         id={videoId}
         crossOrigin={crossOrigin}
-        ref={(c) => {
+        ref={c => {
           this.video = c;
         }}
         muted={muted}
@@ -547,7 +650,7 @@ export default class Video extends Component {
         playsInline={playsInline}
         autoPlay={autoPlay}
         poster={poster}
-        src={src}
+        src={videoSrc}
         onLoadStart={this.handleLoadStart}
         onWaiting={this.handleWaiting}
         onCanPlay={this.handleCanPlay}
@@ -575,6 +678,156 @@ export default class Video extends Component {
         {this.renderChildren()}
       </video>
     );
+  }
+
+  // Process source URL through blob creation if enabled
+  async processSourceUrl(src) {
+    if (!src) {
+      this.processedSrc = null;
+      return;
+    }
+
+    if (!this.props.createBlob) {
+      this.log(
+        'Video.processSourceUrl() - Blob creation disabled, using original URL'
+      );
+      this.processedSrc = src;
+      this.forceUpdate(); // Trigger re-render with processed URL
+      return;
+    }
+
+    this.log(
+      'Video.processSourceUrl() - Processing source URL through blob creation:',
+      src
+    );
+
+    try {
+      // First test if the server supports range requests
+      const supportsRangeRequests = await this.testRangeRequests(src);
+
+      if (supportsRangeRequests) {
+        this.log(
+          'Video.processSourceUrl() - Server supports range requests, using original URL'
+        );
+        this.processedSrc = src;
+        this.forceUpdate();
+
+        // If autoplay is enabled, try to play immediately
+        if (this.props.autoPlay) {
+          this.log(
+            'Video.processSourceUrl() - Autoplay enabled, attempting to play'
+          );
+          setTimeout(() => {
+            this.play();
+          }, 50);
+        }
+        return;
+      }
+
+      // Server doesn't support range requests, create blob
+      this.log(
+        'Video.processSourceUrl() - Server does not support range requests, creating blob'
+      );
+      const blobUrl = await this.createBlobUrl(src);
+      this.blobUrl = blobUrl;
+      this.processedSrc = blobUrl;
+      this.log('Video.processSourceUrl() - Created blob URL:', blobUrl);
+      this.forceUpdate(); // Trigger re-render with processed URL
+    } catch (error) {
+      this.error(
+        'Video.processSourceUrl() - Failed to create blob URL:',
+        error
+      );
+      this.processedSrc = src; // Fallback to original URL
+      this.forceUpdate(); // Trigger re-render with fallback URL
+    }
+  }
+
+  // Test if the server supports range requests by making a mini-seek
+  async testRangeRequests(url) {
+    this.log(
+      'Video.testRangeRequests() - Testing range request support for:',
+      url
+    );
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          Range: 'bytes=0-1023', // Request first 1KB
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0'
+        }
+      });
+
+      this.log('Video.testRangeRequests() - Response status:', response.status);
+      this.log('Video.testRangeRequests() - Response headers:', {
+        'content-range': response.headers.get('content-range'),
+        'accept-ranges': response.headers.get('accept-ranges'),
+        'content-length': response.headers.get('content-length')
+      });
+
+      // 206 = Partial Content (supports range requests)
+      // 200 = OK (doesn't support range requests, returns full content)
+      // Also check if we got a Content-Range header which indicates proper range support
+      const hasContentRange = response.headers.get('content-range');
+      const supportsRanges = response.headers.get('accept-ranges');
+
+      const isRangeSupported =
+        response.status === 206 ||
+        (response.status === 200 && hasContentRange) ||
+        supportsRanges === 'bytes';
+
+      this.log(
+        'Video.testRangeRequests() - Range support detected:',
+        isRangeSupported
+      );
+      return isRangeSupported;
+    } catch (error) {
+      this.log(
+        'Video.testRangeRequests() - Error testing range requests:',
+        error
+      );
+      // If there's an error, assume no range support and create blob
+      return false;
+    }
+  }
+
+  // Create blob URL from source URL
+  async createBlobUrl(url) {
+    this.log('Video.createBlobUrl() - Creating blob URL for:', url);
+
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        Pragma: 'no-cache',
+        Expires: '0'
+      }
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const blob = await response.blob();
+    this.log('Video.createBlobUrl() - Blob created, size:', blob.size);
+
+    const blobUrl = URL.createObjectURL(blob);
+    this.log('Video.createBlobUrl() - Blob URL created:', blobUrl);
+
+    return blobUrl;
+  }
+
+  // Clean up blob when component unmounts or source changes
+  cleanupBlob() {
+    if (this.blobUrl) {
+      this.log('Video.cleanupBlob() - Revoking blob URL:', this.blobUrl);
+      URL.revokeObjectURL(this.blobUrl);
+      this.blobUrl = null;
+    }
+    this.processedSrc = null;
   }
 }
 
