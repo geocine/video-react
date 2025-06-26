@@ -97,17 +97,29 @@ export default class Video extends Component {
       this.video.textTracks.onremovetrack = this.handleTextTrackChange;
     }
 
-    // Store the original source URL from props
-    if (this.props.src) {
+    // Only process source URL if createBlob is enabled
+    if (this.props.src && this.props.createBlob) {
       this.originalSrc = this.props.src;
-      // Process the source URL through blob creation if enabled
+      // Process the source URL through blob creation
       this.processSourceUrl(this.props.src);
+    } else if (this.props.src && this.props.autoPlay) {
+      // If createBlob is false but autoplay is enabled, try to play after a short delay
+      this.log(
+        'Video.componentDidMount() - createBlob disabled, autoplay enabled, attempting to play'
+      );
+      setTimeout(() => {
+        this.play();
+      }, 100);
     }
   }
 
   componentDidUpdate(prevProps) {
-    // Only clean up blob and create new one if src prop actually changes
-    if (this.props.src !== prevProps.src && this.props.src) {
+    // Only clean up blob and create new one if src prop actually changes and createBlob is enabled
+    if (
+      this.props.src !== prevProps.src &&
+      this.props.src &&
+      this.props.createBlob
+    ) {
       this.log(
         'Video.componentDidUpdate() - Source changed, cleaning up old blob'
       );
@@ -116,6 +128,19 @@ export default class Video extends Component {
       this.cleanupBlob();
       // Process the new source URL through blob creation
       this.processSourceUrl(this.props.src);
+    } else if (
+      this.props.src !== prevProps.src &&
+      this.props.src &&
+      this.props.autoPlay &&
+      !this.props.createBlob
+    ) {
+      // If createBlob is false but autoplay is enabled and src changed, try to play after a short delay
+      this.log(
+        'Video.componentDidUpdate() - createBlob disabled, autoplay enabled, src changed, attempting to play'
+      );
+      setTimeout(() => {
+        this.play();
+      }, 100);
     }
   }
 
@@ -633,8 +658,12 @@ export default class Video extends Component {
       videoId
     } = this.props;
 
-    // Use processed source URL if available, otherwise use original src
-    const videoSrc = this.processedSrc !== null ? this.processedSrc : src;
+    // Use processed source URL only if createBlob is enabled and we have a processed URL
+    // Otherwise use original src directly (no processing, no re-renders)
+    const videoSrc =
+      this.props.createBlob && this.processedSrc !== null
+        ? this.processedSrc
+        : src;
 
     return (
       <video
@@ -684,15 +713,6 @@ export default class Video extends Component {
   async processSourceUrl(src) {
     if (!src) {
       this.processedSrc = null;
-      return;
-    }
-
-    if (!this.props.createBlob) {
-      this.log(
-        'Video.processSourceUrl() - Blob creation disabled, using original URL'
-      );
-      this.processedSrc = src;
-      this.forceUpdate(); // Trigger re-render with processed URL
       return;
     }
 
